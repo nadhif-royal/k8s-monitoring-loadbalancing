@@ -13,6 +13,9 @@ Get the detailed information about the installation from the below-mentioned web
 2. Networking uses local network (FILKOM)
 
 
+### Daftar Nama Kelompok :
+1. Muhammad Habibi (235150201111063) - inisialisasi High Availability Cluster (1 Master & 3 Workers), integrasi Container Runtime cri-dockerd, konfigurasi jaringan Calico CNI, manajemen Persistent Storage MySQL (PV/PVC), serta implementasi strategi deployment 3 replika aplikasi untuk menjamin ketersediaan layanan.
+2. Nadhif Rif'at Rasendriya (235150201111) - Membuat readme
 
 > Download the GPG key for docker
 
