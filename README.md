@@ -6,13 +6,6 @@
 
 ---
 
-## Catatan Pelaksanaan
-Mengingat tingginya kebutuhan sumber daya komputasi (menjalankan 4 Virtual Machine secara bersamaan) serta besarnya ukuran file instalasi yang diperlukan, eksekusi teknis (instalasi dan *running* VM) difokuskan pada satu perangkat utama (perangkat Habibi). Oleh karena itu, kolaborasi dan penyusunan *repository* ini dilakukan secara terpusat tanpa riwayat *commit* multi-user di Git demi efisiensi proses pengerjaan. 
-
-Dalam tim ini, **Nadhif Rif'at Rasendriya** berperan sebagai konseptor topologi, penulis teknis (*technical writer*), serta bertanggung jawab pada fase *Quality Assurance* dan analisis pemecahan masalah (*troubleshooting*) secara konseptual.
-
----
-
 ## Arsitektur Jaringan & Node
 Cluster ini berjalan menggunakan jaringan lokal (FILKOM) dengan konfigurasi IP statis menggunakan **Bridge Adapter** pada VirtualBox:
 
