@@ -1,288 +1,134 @@
-﻿# Kubernetes Installation on Ubuntu 22.04/24.04
+﻿# High Availability Kubernetes Cluster (Capstone Project)
 
-Get the detailed information about the installation from the below-mentioned websites of **Docker** and **Kubernetes**.
-
-[Docker](https://docs.docker.com/)
-
-[Kubernetes](https://kubernetes.io/)
-
-### Set up the Docker and Kubernetes repositories:
-
-### Requirements
-1. Ubuntu machines as Master and Worker ( build on VM using Bridge Adapter) minimal 2 machines: 1 Master and 1 Worker
-2. Networking uses local network (FILKOM)
+## Identitas Kelompok
+* **Muhammad Habibi** (235150201111063)
 
 
-### Daftar Nama Kelompok :
-1. Muhammad Habibi (235150201111063) - inisialisasi High Availability Cluster (1 Master & 3 Workers), integrasi Container Runtime cri-dockerd, konfigurasi jaringan Calico CNI, manajemen Persistent Storage MySQL (PV/PVC), serta implementasi strategi deployment 3 replika aplikasi untuk menjamin ketersediaan layanan.
-2. Nadhif Rif'at Rasendriya (235150201111) - Membuat readme
+1. Implementasi Monitoring & Visualisasi: Melakukan instalasi serta konfigurasi Metrics Server dan Grafana untuk memantau performa resource (CPU/RAM) seluruh node dan pod secara real-time.
 
-> Download the GPG key for docker
+2. Optimasi High Availability: Melakukan troubleshooting pada Metrics Server dan mengonfigurasi Horizontal Pod Autoscaler (HPA) dengan target utilisasi CPU 80% untuk memastikan skalabilitas otomatis aplikasi.
 
+3. Verifikasi Load Balancing: Mengelola distribusi trafik melalui Service Kubernetes dan melakukan pengujian mekanisme Round Robin untuk memastikan beban kerja terbagi rata ke seluruh replika Pod (verifikasi via header X-Served-By).
+
+4. Infrastruktur & Storage: Bertanggung jawab atas inisialisasi cluster (1 Master & 3 Workers), konfigurasi jaringan Calico CNI, serta manajemen Persistent Storage MySQL menggunakan PV/PVC.
+* **Nadhif Rif’at Rasendriya** (235150201111074)
+
+1. Konseptor Topologi & Arsitektur: Merancang struktur topologi jaringan lokal, alokasi IP statis untuk Control Plane dan Data Plane, serta menyusun strategi deployment.
+
+2. Technical Writer & Documentation: Menyusun blueprint panduan instalasi (README.md) dan merumuskan dokumentasi analitis terhadap hasil implementasi sistem.
+
+3. Quality Assurance & Troubleshooting: Membantu analisis pemecahan masalah (troubleshooting) secara konseptual selama proses integrasi node dan memvalidasi konfigurasi beban kerja (load balancing) pada Pods.
+
+---
+
+## Arsitektur Jaringan & Node
+Cluster ini berjalan menggunakan jaringan lokal (FILKOM) dengan konfigurasi IP statis menggunakan **Bridge Adapter** pada VirtualBox:
+
+| Node Name | Role | IP Address | Operating System |
+| :--- | :--- | :--- | :--- |
+| **Master-Node** | Control Plane | `192.168.1.13` | Ubuntu 22.04/24.04 |
+| **Worker-1** | Data Plane | `192.168.1.10` | Ubuntu 22.04/24.04 |
+| **Worker-2** | Data Plane | `192.168.1.11` | Ubuntu 22.04/24.04 |
+| **Worker-3** | Data Plane | `192.168.1.12` | Ubuntu 22.04/24.04 |
+
+---
+
+## Panduan Instalasi (Technical Setup)
+
+### 1. Persiapan Docker Engine & Repository
 ```bash
-wget -O - https://download.docker.com/linux/ubuntu/gpg > ./docker.key
-
+wget -O - [https://download.docker.com/linux/ubuntu/gpg](https://download.docker.com/linux/ubuntu/gpg) > ./docker.key
 gpg --no-default-keyring --keyring ./docker.gpg --import ./docker.key
-
 gpg --no-default-keyring --keyring ./docker.gpg --export > ./docker-archive-keyring.gpg
-
 sudo mv ./docker-archive-keyring.gpg /etc/apt/trusted.gpg.d/
-```
-
-> Add the docker repository and install docker
-
-```bash
-# we can get the latest release versions from https://docs.docker.com
-
-sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" -y
+sudo add-apt-repository "deb [arch=amd64] [https://download.docker.com/linux/ubuntu](https://download.docker.com/linux/ubuntu) $(lsb_release -cs) stable" -y
 sudo apt update -y
-sudo apt install git wget curl socat -y
-sudo apt install -y docker-ce
-
+sudo apt install git wget curl socat docker-ce -y
 ```
 
-**To install cri-dockerd for Docker support**
-
-**Docker Engine does not implement the CRI which is a requirement for a container runtime to work with Kubernetes. For that reason, an additional service cri-dockerd has to be installed. cri-dockerd is a project based on the legacy built-in Docker Engine support that was removed from the kubelet in version 1.24.**
-
-> Get the version details
-
+### 2. Instalasi cri-dockerd (Docker CRI Support)
 ```bash
-VER=$(curl -s https://api.github.com/repos/Mirantis/cri-dockerd/releases/latest|grep tag_name | cut -d '"' -f 4|sed 's/v//g')
-```
-
-> Run below commands
-
-```bash
-
-wget https://github.com/Mirantis/cri-dockerd/releases/download/v${VER}/cri-dockerd-${VER}.amd64.tgz
-
+VER=$(curl -s [https://api.github.com/repos/Mirantis/cri-dockerd/releases/latest](https://api.github.com/repos/Mirantis/cri-dockerd/releases/latest)|grep tag_name | cut -d '"' -f 4|sed 's/v//g')
+wget [https://github.com/Mirantis/cri-dockerd/releases/download/v$](https://github.com/Mirantis/cri-dockerd/releases/download/v$){VER}/cri-dockerd-${VER}.amd64.tgz
 tar xzvf cri-dockerd-${VER}.amd64.tgz
-
 sudo mv cri-dockerd/cri-dockerd /usr/local/bin/
-
-wget https://raw.githubusercontent.com/Mirantis/cri-dockerd/master/packaging/systemd/cri-docker.service
-
-wget https://raw.githubusercontent.com/Mirantis/cri-dockerd/master/packaging/systemd/cri-docker.socket
-
+wget [https://raw.githubusercontent.com/Mirantis/cri-dockerd/master/packaging/systemd/cri-docker.service](https://raw.githubusercontent.com/Mirantis/cri-dockerd/master/packaging/systemd/cri-docker.service)
+wget [https://raw.githubusercontent.com/Mirantis/cri-dockerd/master/packaging/systemd/cri-docker.socket](https://raw.githubusercontent.com/Mirantis/cri-dockerd/master/packaging/systemd/cri-docker.socket)
 sudo mv cri-docker.socket cri-docker.service /etc/systemd/system/
-
 sudo sed -i -e 's,/usr/bin/cri-dockerd,/usr/local/bin/cri-dockerd,' /etc/systemd/system/cri-docker.service
-
 sudo systemctl daemon-reload
 sudo systemctl enable cri-docker.service
 sudo systemctl enable --now cri-docker.socket
-
 ```
 
-> Add the GPG key for kubernetes
-
+### 3. Instalasi Kubernetes & Optimasi Sistem
 ```bash
-curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-```
-
-> Add the kubernetes repository
-
-```bash
-echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /" | sudo tee /etc/apt/sources.list.d/kubernetes.list
-```
-
-> Update the repository
-
-```bash
-# Update the repositiries
+curl -fsSL [https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key](https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key) | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] [https://pkgs.k8s.io/core:/stable:/v1.31/deb/](https://pkgs.k8s.io/core:/stable:/v1.31/deb/) /" | sudo tee /etc/apt/sources.list.d/kubernetes.list
 sudo apt-get update
-```
-
-> Install  Kubernetes packages.
-
-```bash
-# Use the same versions to avoid issues with the installation.
 sudo apt-get install -y kubelet kubeadm kubectl
-```
-
-> To hold the versions so that the versions will not get accidently upgraded.
-
-```bash
 sudo apt-mark hold docker-ce kubelet kubeadm kubectl
-```
-
-> Enable the iptables bridge
-
-```bash
-cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
-overlay
-br_netfilter
-EOF
-
-sudo modprobe overlay
-sudo modprobe br_netfilter
-
-# sysctl params required by setup, params persist across reboots
-cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
-net.bridge.bridge-nf-call-iptables  = 1
-net.bridge.bridge-nf-call-ip6tables = 1
-net.ipv4.ip_forward                 = 1
-EOF
-
-# Apply sysctl params without reboot
-sudo sysctl --system
-```
-### Disable SWAP
-> Disable swap on controlplane and dataplane nodes
-
-```bash
 sudo swapoff -a
 ```
 
-```bash
-sudo vim /etc/fstab
-# comment the line which starts with **swap.img**.
-```
-
-### On the Control Plane server (Master node)
-
-> Initialize the cluster by passing the cidr value and the value will depend on the type of network CLI you choose.
-
-**Calico**
-
-```bash
-# Calico network
-# Make sure to copy the join command
-sudo kubeadm init --apiserver-advertise-address=<control_plane_ip> --cri-socket unix:///var/run/cri-dockerd.sock  --pod-network-cidr=192.168.0.0/16
-
-# Or Use below command if the node network is not 192.168.x.x
-sudo kubeadm init --apiserver-advertise-address=<control_plane_ip> --cri-socket unix:///var/run/cri-dockerd.sock  --pod-network-cidr=10.244.0.0/16
-
-# Copy your join command and keep it safe.
-# Below is a sample format
-# Add --cri-socket /var/run/cri-dockerd.sock to the command
-kubeadm join <control_plane_ip>:6443 --token 31rvbl.znk703hbelja7qbx --cri-socket unix:///var/run/cri-dockerd.sock --discovery-token-ca-cert-hash sha256:3dd5f401d1c86be4axxxxxxxxxx61ce965f5xxxxxxxxxxf16cb29a89b96c97dd
-```
-
-> To start using the cluster with current user.
-
-```bash
-mkdir -p $HOME/.kube
-sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-sudo chown $(id -u):$(id -g) $HOME/.kube/config
-```
-
-> To set up the Calico network
-
-```bash
-# Use this if you have initialised the cluster with Calico network add on.
-kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.2/manifests/tigera-operator.yaml
-
-curl https://raw.githubusercontent.com/projectcalico/calico/v3.28.2/manifests/custom-resources.yaml -O
-
-# Change the ip to 10.244.0.0/16 if the node network is 192.168.x.x
-kubectl create -f custom-resources.yaml
-
-```
-
-> Check the nodes
-
-```bash
-# Check the status on the master node.
-kubectl get nodes
-```
-
-### On each of Data plane node (Worker node)
-
-> Joining the node to the cluster:
-
-> Don't forget to include *--cri-socket unix:///var/run/cri-dockerd.sock* with the join command
-
-```bash
-sudo kubeadm join $controller_private_ip:6443 --token $token --discovery-token-ca-cert-hash $hash
-#Ex:
-# kubeadm join <control_plane_ip>:6443 --cri-socket unix:///var/run/cri-dockerd.sock --token 31rvbl.znk703hbelja7qbx --discovery-token-ca-cert-hash sha256:3dd5f401d1c86be4axxxxxxxxxx61ce965f5xxxxxxxxxxf16cb29a89b96c97dd
-# sudo kubeadm join 10.34.7.115:6443 --cri-socket unix:///var/run/cri-dockerd.sock --token kwdszg.aze47y44h7j74x6t --discovery-token-ca-cert-hash sha256:3bd51b39b3a166a4ba5914fc3a19b61cfe81789965da6ac23435edb6aeed9e0d
-```
-
-**TIP**
-
-> If the joining code is lost, it can retrieve using below command
-
-```bash
-kubeadm token create --print-join-command
-```
-
-### To install metrics server (Master node)
-
-```bash
-git clone https://github.com/mialeevs/kubernetes_installation_docker.git
-cd kubernetes_installation_docker/
-kubectl apply -f metrics-server.yaml
-cd
-rm -rf kubernetes_installation_docker/
-```
-
-### Installing Dashboard (Master node)
-
-1. *Installing Helm:*
-Download and install Helm with the following commands:
-```bash
-     curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-     chmod +x get_helm.sh
-     ./get_helm.sh
-     helm   
-```
-3. *Adding the Kubernetes Dashboard Helm Repository:*
-Add the repository and verify it:
-```bash   
-     helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
-     helm repo list    
-```
-5. *Installing Kubernetes Dashboard Using Helm:*
-Install it in the `kubernetes-dashboard` namespace:
-```bash     
-     helm upgrade --install kubernetes-dashboard kubernetes-dashboard/kubernetes-dashboard --create-namespace --namespace kubernetes-dashboard
-     kubectl get pods,svc -n kubernetes-dashboard  
-```
-7. *Accessing the Dashboard:*
-Expose the dashboard using a NodePort:
-```bash      
-     kubectl expose deployment kubernetes-dashboard-kong --name k8s-dash-svc --type NodePort --port 443 --target-port 8443 -n kubernetes-dashboard
-```
-run: kubectl get pods,svc -n kubernetes-dashboard
-use this port to access the dashboard from phy node IP: 
-....
-service/k8s-dash-svc                           NodePort    10.110.85.135   <none>        443:30346/TCP   23s
-
-
-9. *Generating a Token for Login:*
-Create a service account and generate a token:
-```bash
-   nano k8s-dash.yaml
-```
-
-```bash
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: widhi
-  namespace: kube-system
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: widhi-admin
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cluster-admin
-subjects:
-- kind: ServiceAccount
-  name: widhi
-  namespace: kube-system
-```
-then run:
+
+## Deployment Aplikasi (k8s-login-app)
+Aplikasi dideploy dengan **3 Replicas** yang disebar secara otomatis oleh *Kube-Scheduler* ke ketiga Worker Node untuk menjamin *High Availability*.
+
 ```bash
-kubectl apply -f k8s-dash.yaml
+cd k8s-login-app/k8s
+kubectl apply -f mysql-secret.yaml
+kubectl apply -f mysql-pv.yaml
+kubectl apply -f mysql-pvc.yaml
+kubectl apply -f mysql-service.yaml
+kubectl apply -f mysql-deployment.yaml
+kubectl apply -f web-service.yaml
+kubectl apply -f web-deployment.yaml
 ```
-10. Generate the token:    
-     kubectl create token widhi -n kube-system
 
+---
 
+## Bukti Implementasi dan Analisis
+
+### Gambar 1. Status Operasional Monitoring Stack
+**Penjelasan:** Melalui eksekusi perintah `kubectl get pods -n monitoring -o wide`, dilakukan verifikasi terhadap kesiapan seluruh komponen *monitoring stack*. Hasil menunjukkan bahwa seluruh *pod* esensial meliputi Prometheus, Grafana, Alertmanager, dan Node Exporter, telah berada dalam status `Running` dan tersebar secara merata di seluruh *node* (Master dan ketiga Worker). Distribusi ini membuktikan keberhasilan konfigurasi *high availability* pada lapisan pemantauan klaster.
+
+### Gambar 2. Verifikasi Akses Antarmuka Grafana
+**Penjelasan:** Gambar ini menampilkan halaman autentikasi Grafana yang berhasil diakses melalui peramban web eksternal. Keberhasilan akses ini mengonfirmasi bahwa *service* Grafana telah terekspos dengan benar menggunakan mekanisme *NodePort* atau *LoadBalancer*. Hal ini memastikan bahwa operator sistem dapat melakukan pengawasan visual terhadap metrik klaster secara *real-time* dari luar jaringan klaster.
+
+### Gambar 3. Analisis Telemetri Resource Control Plane
+**Penjelasan:** Visualisasi dasbor Grafana ini menyajikan metrik penggunaan CPU dan memori secara spesifik pada mesin *Control Plane*. Data telemetri yang dikumpulkan oleh `node-exporter` dan disimpan dalam pangkalan data deret waktu (*time-series*) Prometheus berhasil ditampilkan secara akurat. Pemantauan pada *node* ini kritikal untuk memastikan stabilitas komponen inti klaster seperti API Server, *Scheduler*, dan *Controller Manager*.
+
+### Gambar 4. Monitoring Resource Terdistribusi pada Worker-1
+**Penjelasan:** Dokumentasi ini menyajikan pemantauan penggunaan sumber daya pada *Worker-1*. Analisis terhadap grafik ini menunjukkan konsumsi memori dan CPU yang stabil. Kemampuan untuk memilah data metrik per *node* membuktikan efektivitas sistem *monitoring* dalam mendeteksi anomali atau ketimpangan beban kerja (*resource imbalance*) di seluruh infrastruktur klaster.
+
+### Gambar 5. Monitoring Resource Terdistribusi pada Worker-2
+**Penjelasan:** Serupa dengan node lainnya, pemantauan pada *Worker-2* menunjukkan performa yang konsisten. Visualisasi ini memastikan bahwa beban kerja yang dijalankan pada node ini terpantau dengan baik oleh sistem Prometheus.
+
+### Gambar 6. Monitoring Resource Terdistribusi pada Worker-3
+**Penjelasan:** Pemantauan pada *Worker-3* melengkapi visibilitas infrastruktur secara menyeluruh. Konsistensi data di seluruh node pelaksana tugas membuktikan keandalan *node-exporter* dalam mengumpulkan data telemetri.
+
+### Gambar 7. Verifikasi High Availability dan Distribusi Pod Aplikasi
+**Penjelasan:** Berdasarkan *output* `kubectl get pods -o wide`, terlihat bahwa tiga replika dari aplikasi `login-app` telah dideploy dan aktif. Penempatan *pod* yang tersebar secara otomatis oleh *Kube-scheduler* ke Worker-1, Master, dan Worker-2 merupakan implementasi nyata dari prinsip *fault tolerance*. Jika salah satu *node* mengalami kegagalan, layanan tetap tersedia melalui replika di *node* lainnya.
+
+### Gambar 8. Monitoring Health Check via Prometheus Service Discovery
+**Penjelasan:** Tampilan antarmuka 'Targets' pada Prometheus memvalidasi fungsionalitas `ServiceMonitor` yang telah dikonfigurasi. Sistem berhasil melakukan penemuan layanan (*service discovery*) terhadap tiga titik akhir (*endpoints*) dari `login-app`. Status `UP` pada seluruh target menandakan bahwa Prometheus sukses melakukan penarikan metrik (*scraping*) dari aplikasi untuk diolah lebih lanjut.
+
+### Gambar 9. Observabilitas Kinerja Aplikasi Tingkat Pod
+**Penjelasan:** Dasbor kustom ini memberikan visibilitas mendalam terhadap performa spesifik pod `login-app`, meliputi konsumsi CPU, penggunaan memori, serta lalu lintas jaringan masuk dan keluar. Melalui visualisasi ini, pengembang dapat menganalisis efisiensi kode dan dampak operasional aplikasi terhadap infrastruktur secara granulasi, yang sangat penting untuk proses optimasi performa.
+
+### Gambar 10. Analisis Baseline Performance dan Inisialisasi HPA
+**Penjelasan:** Pada tahap inisialisasi, dilakukan pengecekan beban awal menggunakan `kubectl top nodes` dan pemantauan status Horizontal Pod Autoscaler (HPA). Kondisi awal menunjukkan beban CPU yang rendah (27%) dengan target ambang batas autoscaling yang ditetapkan pada 80%. Tahap ini sangat penting sebagai titik acuan (*baseline*) untuk menguji reaktivitas sistem otomatisasi terhadap lonjakan beban nantinya.
+
+### Gambar 11. Skenario Injeksi Beban Kerja (Traffic Generation)
+**Penjelasan:** Dokumentasi ini memperlihatkan pengoperasian *pod* `load-gen` yang dirancang untuk mensimulasikan lonjakan trafik pengguna secara intensif ke aplikasi `login-app`. Pengecekan status *pod* secara berdampingan memastikan bahwa simulasi beban sedang berlangsung secara aktif sementara aplikasi sasaran terus memberikan layanan.
+
+### Gambar 12. Analisis Reaktivitas HPA terhadap Lonjakan Beban CPU
+**Penjelasan:** Gambar ini menangkap momen kritis di mana intensitas trafik dari `load-gen` berhasil memicu lonjakan penggunaan CPU hingga 87%, melampaui batas aman 80% yang telah dikonfigurasi. Kondisi ini membuktikan bahwa HPA telah berhasil mendeteksi beban berlebih secara dinamis dan bersiap untuk menjalankan instruksi *scale-out* (penambahan kapasitas) guna menjaga stabilitas layanan.
+
+### Gambar 13. Analisis Stabilitas Klaster dan Fase Cool-down HPA
+**Penjelasan:** Pasca penghentian simulasi beban, metrik penggunaan CPU terpantau menurun secara signifikan ke angka 18%. Hasil ini mendemonstrasikan kemampuan klaster dalam melakukan normalisasi mandiri. Sistem HPA menunjukkan stabilitas operasional dengan memantau penurunan beban sebelum nantinya melakukan *scale-in* (pengurangan replika) secara otomatis untuk mengefisiensikan penggunaan sumber daya.
+
+---
+**Link Github:** [https://github.com/nadhif-royal/k8s-monitoring-loadbalancing](https://github.com/nadhif-royal/k8s-monitoring-loadbalancing)
