@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: login-app-monitor
+  namespace: monitoring
+  labels:
+    release: mon-stack
+spec:
+  selector:
+    matchLabels:
+      app: login-app  # <--- Pastikan label ini sama dengan label di Service aplikasi login Mas
+  endpoints:
+  - port: http        # <--- Nama port di Service aplikasi Mas harus 'http'
+    interval: 15s
+    path: /metrics
+  namespaceSelector:
+    matchNames:
+    - default         # <--- Ganti jika aplikasi login Mas di namespace lain
